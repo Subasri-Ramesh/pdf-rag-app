@@ -1,4 +1,4 @@
-"""Embedding, Chroma retrieval, and grounded local/OpenAI generation."""
+"""Embedding, Chroma retrieval, and grounded DeepSeek generation."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from typing import Any, Protocol, Sequence
 from uuid import uuid4
 
 import chromadb
-import requests
 from openai import OpenAI
 
 from ingest import IngestedDocument
@@ -128,78 +127,32 @@ def answer_question(
     question: str,
     chunks: Sequence[RetrievedChunk],
     *,
-    provider: str,
-    model: str,
     api_key: str = "",
+    model: str = "deepseek-v4-flash",
     base_url: str | None = None,
-    ollama_base_url: str = "http://localhost:11434",
     client: Any | None = None,
 ) -> str:
-    """Answer solely from evidence using DeepSeek, Ollama locally, or the OpenAI API."""
+    """Answer solely from evidence using the DeepSeek API."""
     if not chunks:
         return INSUFFICIENT_EVIDENCE
-    provider = provider.strip().lower()
+    if not api_key and client is None:
+        raise ValueError("DEEPSEEK_API_KEY is not configured.")
+
     prompt = f"QUESTION\n{question.strip()}\n\nEVIDENCE\n{build_evidence(chunks)}"
-
-    if provider == "ollama":
-        http_client = client or requests
-        try:
-            response = http_client.post(
-                f"{ollama_base_url.rstrip('/')}/api/chat",
-                json={
-                    "model": model,
-                    "stream": False,
-                    "messages": [
-                        {"role": "system", "content": GROUNDING_INSTRUCTIONS},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "options": {"temperature": 0},
-                },
-                timeout=180,
-            )
-            response.raise_for_status()
-            answer = str(response.json()["message"]["content"]).strip()
-        except requests.ConnectionError as exc:
-            raise RuntimeError(
-                "Cannot connect to Ollama. Install and start Ollama, then run "
-                f"'ollama pull {model}'."
-            ) from exc
-        except (requests.RequestException, KeyError, TypeError, ValueError) as exc:
-            raise RuntimeError(f"Ollama could not generate an answer: {exc}") from exc
-        return answer or INSUFFICIENT_EVIDENCE
-
-    if provider == "deepseek":
-        if not api_key:
-            raise ValueError("DEEPSEEK_API_KEY is not configured.")
-        deepseek_client = client or OpenAI(
-            api_key=api_key,
-            base_url=base_url or "https://api.deepseek.com",
-        )
-        try:
-            response = deepseek_client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": GROUNDING_INSTRUCTIONS},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0,
-            )
-            answer = (response.choices[0].message.content or "").strip()
-        except Exception as exc:
-            raise RuntimeError(f"DeepSeek could not generate an answer: {exc}") from exc
-        return answer or INSUFFICIENT_EVIDENCE
-
-    if provider == "openai":
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY is not configured.")
-        openai_client = client or OpenAI(api_key=api_key)
-        response = openai_client.responses.create(
+    deepseek_client = client or OpenAI(
+        api_key=api_key,
+        base_url=base_url or "https://api.deepseek.com",
+    )
+    try:
+        response = deepseek_client.chat.completions.create(
             model=model,
-            store=False,
-            instructions=GROUNDING_INSTRUCTIONS,
-            input=prompt,
+            messages=[
+                {"role": "system", "content": GROUNDING_INSTRUCTIONS},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0,
         )
-        answer = (response.output_text or "").strip()
-        return answer or INSUFFICIENT_EVIDENCE
-
-    raise ValueError("LLM_PROVIDER must be 'deepseek', 'ollama', or 'openai'.")
+        answer = (response.choices[0].message.content or "").strip()
+    except Exception as exc:
+        raise RuntimeError(f"DeepSeek could not generate an answer: {exc}") from exc
+    return answer or INSUFFICIENT_EVIDENCE

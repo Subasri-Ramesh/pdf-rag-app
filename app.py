@@ -9,10 +9,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 
-import importlib
-import rag
-importlib.reload(rag)
-
 from ingest import PDFIngestionError, ScannedPDFError, ingest_pdf
 from rag import INSUFFICIENT_EVIDENCE, RAGStore, answer_question
 
@@ -129,39 +125,17 @@ if question:
                 if not chunks:
                     answer = INSUFFICIENT_EVIDENCE
                 else:
-                    provider = os.getenv("LLM_PROVIDER", "").lower()
-                    if not provider:
-                        if os.getenv("DEEPSEEK_API_KEY"):
-                            provider = "deepseek"
-                        elif os.getenv("OPENAI_API_KEY"):
-                            provider = "openai"
-                        else:
-                            provider = "ollama"
-
-                    if provider == "deepseek":
-                        api_key = os.getenv("DEEPSEEK_API_KEY", "")
-                        model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
-                        base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-                    elif provider == "openai":
-                        api_key = os.getenv("OPENAI_API_KEY", "")
-                        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-                        base_url = None
-                    else:
-                        api_key = ""
-                        model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
-                        base_url = None
+                    api_key = os.getenv("DEEPSEEK_API_KEY", "")
+                    model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+                    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
                     try:
                         answer = answer_question(
                             question,
                             chunks,
-                            provider=provider,
                             api_key=api_key,
                             model=model,
                             base_url=base_url,
-                            ollama_base_url=os.getenv(
-                                "OLLAMA_BASE_URL", "http://localhost:11434"
-                            ),
                         )
                     except ValueError as exc:
                         answer = str(exc)

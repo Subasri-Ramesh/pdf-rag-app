@@ -52,69 +52,14 @@ def test_distance_threshold_can_reject_weak_matches():
 
 
 def test_answer_returns_fallback_without_calling_api():
-    assert (
-        answer_question("Unknown?", [], provider="ollama", model="test")
-        == INSUFFICIENT_EVIDENCE
-    )
+    assert answer_question("Unknown?", [], api_key="test") == INSUFFICIENT_EVIDENCE
 
 
-def test_answer_calls_responses_api_with_citations_and_no_storage():
-    captured = {}
-
-    class FakeResponses:
-        def create(self, **kwargs):
-            captured.update(kwargs)
-            return SimpleNamespace(output_text="Remote work is allowed [guide.pdf, p. 1].")
-
-    fake_client = SimpleNamespace(responses=FakeResponses())
+def test_answer_requires_api_key_when_no_client():
+    import pytest
     chunks = [RetrievedChunk("Remote work is allowed.", "guide.pdf", 1, "doc", 0.1)]
-
-    answer = answer_question(
-        "Is remote work allowed?",
-        chunks,
-        provider="openai",
-        api_key="test-key",
-        model="test-model",
-        client=fake_client,
-    )
-
-    assert answer == "Remote work is allowed [guide.pdf, p. 1]."
-    assert captured["model"] == "test-model"
-    assert captured["store"] is False
-    assert "[guide.pdf, p. 1]" in captured["input"]
-    assert "only the evidence" in captured["instructions"]
-
-
-def test_answer_calls_local_ollama_chat_api():
-    captured = {}
-
-    class FakeResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"message": {"content": "Allowed [guide.pdf, p. 1]."}}
-
-    class FakeHTTPClient:
-        def post(self, url, **kwargs):
-            captured["url"] = url
-            captured.update(kwargs)
-            return FakeResponse()
-
-    chunks = [RetrievedChunk("Remote work is allowed.", "guide.pdf", 1, "doc", 0.1)]
-    answer = answer_question(
-        "Is remote work allowed?",
-        chunks,
-        provider="ollama",
-        model="llama3.2:3b",
-        client=FakeHTTPClient(),
-    )
-
-    assert answer == "Allowed [guide.pdf, p. 1]."
-    assert captured["url"] == "http://localhost:11434/api/chat"
-    assert captured["json"]["stream"] is False
-    assert captured["json"]["model"] == "llama3.2:3b"
-    assert "[guide.pdf, p. 1]" in captured["json"]["messages"][1]["content"]
+    with pytest.raises(ValueError, match="DEEPSEEK_API_KEY"):
+        answer_question("Is remote work allowed?", chunks, api_key="")
 
 
 def test_answer_calls_deepseek_chat_api():
@@ -135,7 +80,6 @@ def test_answer_calls_deepseek_chat_api():
     answer = answer_question(
         "Is remote work allowed?",
         chunks,
-        provider="deepseek",
         api_key="test-key",
         model="deepseek-v4-flash",
         client=fake_client,
