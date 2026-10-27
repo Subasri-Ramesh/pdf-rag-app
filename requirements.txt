@@ -1,0 +1,9 @@
+streamlit>=1.40,<2
+PyMuPDF>=1.24,<2
+sentence-transformers>=3.3,<6
+chromadb>=1.0,<2
+openai>=1.55,<3
+requests>=2.32,<3
+python-dotenv>=1.0,<2
+pytest>=8.0,<9
+numpy>=1.26,<3
