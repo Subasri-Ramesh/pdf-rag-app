@@ -7,6 +7,7 @@ from ingest import (
     ScannedPDFError,
     chunk_pages,
     extract_pages,
+    ingest_multiple_pdfs,
     ingest_pdf,
 )
 
@@ -67,3 +68,24 @@ def test_chunk_parameters_are_validated():
     pages = extract_pages("notes.pdf", make_pdf(["useful text " * 20]))
     with pytest.raises(ValueError, match="overlap"):
         chunk_pages(pages, "doc", chunk_size=100, overlap=100)
+
+
+def test_ingest_multiple_pdfs_with_partial_failures():
+    valid_pdf_1 = make_pdf(["Document one policy details " * 20])
+    valid_pdf_2 = make_pdf(["Document two guidelines details " * 20])
+    invalid_pdf = b"not a valid pdf"
+
+    files = [
+        ("doc1.pdf", valid_pdf_1),
+        ("broken.pdf", invalid_pdf),
+        ("doc2.pdf", valid_pdf_2),
+    ]
+
+    docs, errors = ingest_multiple_pdfs(files)
+
+    assert len(docs) == 2
+    assert {d.filename for d in docs} == {"doc1.pdf", "doc2.pdf"}
+    assert len(errors) == 1
+    assert errors[0][0] == "broken.pdf"
+    assert "valid PDF signature" in errors[0][1]
+

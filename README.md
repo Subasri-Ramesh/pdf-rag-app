@@ -8,17 +8,18 @@ DeepSeek to answer strictly from those passages.
 
 ## Features
 
-- Multiple PDF uploads with extension, signature, size, corruption, encryption,
-  and empty-file validation
-- Detection of image-only/scanned PDFs that need OCR
-- One-based PDF page metadata retained through overlapping chunking
-- Local `all-MiniLM-L6-v2` embeddings and cosine similarity search in ChromaDB
-- Evidence-only responses with `[filename.pdf, p. N]` citations
-- A deterministic insufficient-evidence fallback before calling the model
-- In-memory vector stores isolated per Streamlit browser session
-- Per-document deletion, duplicate detection, and visible retrieved evidence
-- Fast, high-quality answer generation through DeepSeek API
-- Unit tests with generated PDFs and test doubles
+- **Multi-File Search**: Direct vector & semantic search across multiple files simultaneously with similarity scores, keyword highlighting, and per-document result breakdowns.
+- **Cross-Document Question Answering**: Synthesizes information across multiple uploaded documents with balanced retrieval, conflict detection, and exact page citations `[filename.pdf, p. N]`.
+- **Flexible Scope Filtering**: Seamlessly toggle between querying all uploaded files or focusing on specific documents for targeted comparison.
+- **Batch Multi-PDF Ingestion**: Upload and index multiple PDFs in one operation with extension, signature, size, corruption, encryption, and empty-file validation.
+- **Detection of Image-Only/Scanned PDFs**: Automatically identifies PDFs needing OCR and provides actionable feedback without crashing.
+- **One-Based Page Metadata**: Chunks never cross page boundaries, guaranteeing unambiguous page-level citations.
+- **Local `all-MiniLM-L6-v2` Embeddings**: Computes normalized vectors locally with cosine distance in ChromaDB.
+- **Deterministic Insufficient-Evidence Fallback**: Immediate fallback response without unnecessary API calls when relevant evidence is lacking.
+- **In-Memory Session Vector Store**: Complete session isolation with ephemeral in-memory Chroma storage.
+- **Document Explorer & Transparency**: Inspect extracted chunks and verify page boundaries directly from the UI.
+- **DeepSeek API Generation**: High-quality answers strictly grounded in retrieved evidence.
+- **Comprehensive Unit Tests**: Fully mocked test suite using generated PDFs and deterministic test doubles.
 
 ## Architecture
 
@@ -119,11 +120,20 @@ download a Sentence Transformers model. They use generated PDFs and test doubles
 Do not put secrets in source code or commit `.env`. In production, inject the
 variables with the hosting platform's secret manager (such as Streamlit Community Cloud Secrets).
 
-## Retrieval and grounding behavior
+## Multi-File Search and Grounding Behavior
 
-The retriever returns up to five chunks whose cosine distance is at most `0.75`.
-If none pass, the app returns: `I don't have enough evidence in the uploaded PDFs
-to answer that.` without calling a language model. If evidence passes,
-DeepSeek receives only the question and labeled evidence, with instructions to avoid outside
-knowledge, cite claims, report conflicts, and use the same fallback if the
-passages still do not support an answer.
+### Multi-File Search
+The **Search Across Files** tab provides direct vector search across all indexed PDFs (or a filtered selection). Users can adjust the minimum similarity threshold and maximum results. Matches are displayed with:
+- Filename and exact page number
+- Similarity percentage match
+- Excerpt preview with query term highlighting
+- Quick action button to ask a grounded question about that specific excerpt in the Q&A tab
+
+### Multi-File Retrieval and Answering
+When answering questions across multiple documents:
+1. **Scope Selection**: Users can query across all indexed documents or select specific files from the scope filter.
+2. **Balanced Retrieval**: To avoid a single document monopolizing all retrieved passages, the retriever queries a candidate pool and balances representation across all relevant documents before ordering chunks by similarity.
+3. **Thresholding**: Cosine distance cutoff of `0.75` filters out irrelevant noise. If no chunk meets this threshold, the deterministic message is returned immediately without calling the API:
+   `I don't have enough evidence in the uploaded PDFs to answer that.`
+4. **Cross-Document Synthesis**: If sufficient evidence exists, DeepSeek is prompted to synthesize findings across the files, explicitly compare or contrast source documents when appropriate, report conflicts, and provide exact citations `[filename.pdf, p. N]` for every factual claim.
+

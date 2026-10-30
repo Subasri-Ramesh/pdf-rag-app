@@ -6,6 +6,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 import pymupdf as fitz
 
@@ -172,3 +173,21 @@ def ingest_pdf(
         page_count=len(pages),
         chunks=tuple(chunks),
     )
+
+
+def ingest_multiple_pdfs(
+    files: Sequence[tuple[str, bytes]],
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    overlap: int = DEFAULT_CHUNK_OVERLAP,
+) -> tuple[list[IngestedDocument], list[tuple[str, str]]]:
+    """Ingest multiple PDFs, returning (successful_documents, errors)."""
+    documents: list[IngestedDocument] = []
+    errors: list[tuple[str, str]] = []
+    for filename, data in files:
+        try:
+            doc = ingest_pdf(filename, data, chunk_size, overlap)
+            documents.append(doc)
+        except Exception as exc:
+            errors.append((filename, str(exc)))
+    return documents, errors
+
